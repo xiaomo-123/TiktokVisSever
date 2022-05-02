@@ -1,0 +1,140 @@
+package main
+
+// import (
+// 	"fyne.io/fyne/v2/container"
+// 	"fyne.io/fyne/v2/theme"
+
+// 	// "fyne.io/fyne/v2"
+// 	"TiktokVisSever/controller"
+
+// 	"fyne.io/fyne/v2/app"
+// 	"fyne.io/fyne/v2/layout"
+// 	"fyne.io/fyne/v2/widget"
+// )
+
+// func main() {
+// 	a := app.New()
+// 	mainW := a.NewWindow("Main windows")
+// 	showAnotherWindowsButton := widget.NewButtonWithIcon("Show Another Windows", theme.ComputerIcon(), func() {
+// 		mainW.Hide()
+// 		// create anotherW inside the button callback
+// 		controller.Start(mainW)
+// 	})
+
+// 	content := container.New(layout.NewHBoxLayout(), showAnotherWindowsButton)
+// 	mainW.SetContent(content)
+// 	mainW.ShowAndRun()
+// }
+import (
+	"fmt"
+	"path/filepath"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/widget"
+)
+
+func main() {
+	myApp := app.New()
+	anotherW := myApp.NewWindow("Form Widget")
+	msg := widget.NewLabel("")
+	tblist := binding.NewStringList()
+	colist := binding.NewStringList()
+	var cols []string
+	var tbls []string
+	lst := LbList(tblist)
+	lstCol := LbList(colist)
+	//得到左边子菜单
+	lst.OnSelected = func(id widget.ListItemID) {
+		cols = Getcol(tbls[id], msg)
+		colist.Set(cols)
+	}
+	// var data map[string][]string
+	data := make(map[string][]string)
+	tree := widget.NewTreeWithStrings(data)
+	//得到右边的内容
+	tree.OnSelected = func(uid widget.TreeNodeID) {
+
+		msg.SetText("选中了" + uid)
+
+	}
+	btn := widget.NewButton("Get tables", func() {
+		tbls = Gettable()
+		tblist.Set(tbls)
+		// tbls1:=[]string{"abc","ccc"}
+		//得到左边菜单所有的列的数据
+		for i := 0; i < len(tbls); i++ {
+			data[tbls[i]] = Getcol(tbls[i], msg)
+		}
+
+		data[""] = []string{"system"}
+		data["system"] = tbls
+		tree.Refresh()
+	})
+
+	top := container.NewVBox(btn)
+	cc := container.NewHSplit(tree, lstCol)
+
+	anotherW.SetContent(container.NewBorder(top, msg, nil, nil, cc))
+	// anotherW.SetMaster()
+	anotherW.Resize(fyne.NewSize(800, 700))
+	anotherW.ShowAndRun()
+
+}
+func Gettable() (tables []string) {
+	t := []string{"abc", "ccc"}
+	return t
+}
+func Getcol(col string, msg *widget.Label) (cols []string) {
+	fmt.Println(col)
+	t := []string{"abc", "ccc"}
+	return t
+}
+func LbList(data binding.StringList) *widget.List {
+	return widget.NewListWithData(data,
+		func() fyne.CanvasObject {
+			return widget.NewLabel("aaaaaaa")
+		}, func(di binding.DataItem, co fyne.CanvasObject) {
+			lbl := co.(*widget.Label)
+			s := di.(binding.String)
+			ss, _ := s.Get()
+			lbl.SetText(filepath.Base(ss))
+		})
+}
+
+// package main
+
+// import (
+// 	"log"
+
+// 	"fyne.io/fyne/v2/app"
+// 	"fyne.io/fyne/v2/widget"
+// 	"TiktokVisSever/controller"
+// )
+
+// func main() {
+// 	myApp := app.New()
+// 	myWindow := myApp.NewWindow("Form Widget")
+
+// 	entry := widget.NewEntry()
+// 	textArea := widget.NewMultiLineEntry()
+
+// 	form := &widget.Form{
+// 		Items: []*widget.FormItem{ // we can specify items in the constructor
+// 			{Text: "Entry", Widget: entry}},
+// 		OnSubmit: func() { // optional, handle form submission
+// 			log.Println("Form submitted:", entry.Text)
+// 			log.Println("multiline:", textArea.Text)
+// 			myWindow.Close()
+// 			controller.Start(myWindow)
+// 		},
+// 	}
+
+// 	// we can also append items
+// 	form.Append("Text", textArea)
+
+// 	myWindow.SetContent(form)
+// 	myWindow.ShowAndRun()
+// }

@@ -1,0 +1,57 @@
+package controller
+import (
+	
+	"fyne.io/fyne/v2"
+	// "fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/widget"
+	"path/filepath"
+)
+func Start(mainW fyne.Window) {
+	anotherW := fyne.CurrentApp().NewWindow("Another Windows")
+	msg:=widget.NewLabel("")
+	tblist:=binding.NewStringList()
+	colist:=binding.NewStringList()
+	var cols []string
+	lst:=LbList(tblist)
+	lstCol:=LbList(colist)
+    lst.OnSelected=func(id widget.ListItemID) {
+		cols=Getcol(msg)
+		colist.Set(cols)
+	}
+	btn:=widget.NewButton("Get tables",func(){
+		tblist.Set(Gettable())
+	})
+	anotherW.SetOnClosed(func() {
+		mainW.Close()
+	})
+	top:=container.NewVBox(btn)
+	cc:=container.NewHSplit(lst,lstCol)
+
+	
+	anotherW.SetContent(container.NewBorder(top,msg,nil,nil,cc))
+	anotherW.SetMaster()
+	anotherW.Resize(fyne.NewSize(800, 700))
+	anotherW.CenterOnScreen()
+	anotherW.Show()
+}
+func Gettable()(tables []string){
+  t:=[]string{"abc","ccc"}
+  return t
+}
+func Getcol(msg *widget.Label)(cols []string){
+	t:=[]string{"abc","ccc"}
+	return t
+}
+func LbList(data binding.StringList)*widget.List{
+	return widget.NewListWithData(data,
+		func()fyne.CanvasObject{
+			return widget.NewLabel("aaaaaaa")
+		},func(di binding.DataItem,co fyne.CanvasObject){
+			lbl:=co.(*widget.Label)
+			s:=di.(binding.String)
+			ss,_:=s.Get()
+			lbl.SetText(filepath.Base(ss))	
+		})
+}

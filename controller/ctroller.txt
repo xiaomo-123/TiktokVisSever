@@ -1,0 +1,128 @@
+package controller
+import (
+	// "fmt"	
+	// "math/rand"
+	"strings"
+"os"
+"github.com/flopp/go-findfont"
+"fyne.io/fyne/v2"
+
+// "fyne.io/fyne/v2/app"
+ "fyne.io/fyne/v2/container"
+// "fyne.io/fyne/v2/layout"
+// "fyne.io/fyne/v2/theme"
+ "fyne.io/fyne/v2/widget"
+)
+
+
+
+const preferenceCurrentTutorial = "currentTutorial"
+func init() { 
+	 fontPaths := findfont.List() 
+	 for _, path := range fontPaths { 	
+		 if strings.Contains(path, "simkai.ttf") { 
+			 os.Setenv("FYNE_FONT", path)
+			  break  
+			}		
+	 }	
+}
+var topWindow fyne.Window
+func Start(mainW fyne.Window) {		
+	// a := app.NewWithID("io.fyne.demo")
+	w := fyne.CurrentApp().NewWindow("指纹浏览器管理窗口")
+	
+	topWindow = w
+	// w := a.NewWindow("Fyne Demo")
+	// topWindow =w
+	w.SetMaster()
+	content := container.NewMax()
+	title := widget.NewLabel("Component name")
+	intro := widget.NewLabel("An introduction would probably go\nhere, as well as a")
+	intro.Wrapping = fyne.TextWrapWord
+	//1、执行函数
+	// type Tutorial struct {
+	// 	Title, Intro string
+	// 	View         func(w fyne.Window) fyne.CanvasObject
+	// }
+	//左右两边都是windows窗口
+	//通过函数构建窗口
+	//右边窗口通过回调函数构建
+	setTutorial := func(t Tutorial) {
+		if fyne.CurrentDevice().IsMobile() {
+			child := fyne.CurrentApp().NewWindow(t.Title)
+			topWindow = child
+			child.SetContent(t.View(topWindow))
+			child.Show()
+			child.SetOnClosed(func() {
+				topWindow = w
+			})
+			return
+		}
+
+		title.SetText(t.Title)
+		intro.SetText(t.Intro)
+
+		content.Objects = []fyne.CanvasObject{t.View(w)}
+		content.Refresh()
+	}
+	// tutorial := container.NewBorder(
+	// 	container.NewVBox(title, widget.NewSeparator(), intro), nil, nil, nil, content)
+	tutorial := container.NewBorder(widget.NewLabel("菜单列表"),nil,nil, nil,widget.NewLabel("菜单列表"))	
+	split := container.NewHSplit(makeNav(setTutorial, true), tutorial)
+	split.Offset = 0.2
+	w.SetContent(split)
+	w.Resize(fyne.NewSize(640, 460))
+	// w.Show()
+	w.Show()
+}
+// setTutorial---右边图形化执行的函数
+func makeNav(setTutorial func(tutorial Tutorial), loadPrevious bool) fyne.CanvasObject {
+	a := fyne.CurrentApp()
+
+	tree := &widget.Tree{
+		ChildUIDs: func(uid string) []string {
+			return TutorialIndex[uid]
+		},
+		IsBranch: func(uid string) bool {
+			children, ok := TutorialIndex[uid]
+
+			return ok && len(children) > 0
+		},
+		CreateNode: func(branch bool) fyne.CanvasObject {
+			return widget.NewLabel("Collection Widgets")
+		},
+		UpdateNode: func(uid string, branch bool, obj fyne.CanvasObject) {
+			t, ok := Tutorials[uid]
+			if !ok {
+				fyne.LogError("Missing tutorial panel: "+uid, nil)
+				return
+			}
+			obj.(*widget.Label).SetText(t.Title)
+		},
+		OnSelected: func(uid string) {
+			//选定左边--得到右边
+			//tutorials.Tutorials[uid]执行回调函数--welcomeScreen
+			// if t, ok := tutorials.Tutorials[uid]; ok {
+			// 	a.Preferences().SetString(preferenceCurrentTutorial, uid)
+			// 	setTutorial(t)
+			// welcomeScreen(_ fyne.Window) fyne.CanvasObject
+			// }
+		},
+	}
+
+	if loadPrevious {
+		currentPref := a.Preferences().StringWithFallback(preferenceCurrentTutorial, "welcome")
+		tree.Select(currentPref)
+	}
+
+	// themes := fyne.NewContainerWithLayout(layout.NewGridLayout(2),
+	// 	widget.NewButton("Dark", func() {
+	// 		a.Settings().SetTheme(theme.DarkTheme())
+	// 	}),
+	// 	widget.NewButton("Light", func() {
+	// 		a.Settings().SetTheme(theme.LightTheme())
+	// 	}),
+	// )
+
+	return container.NewBorder(nil, nil, nil, nil, tree)
+}

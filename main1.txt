@@ -1,0 +1,206 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"strings"
+	"sync"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/widget"
+	"github.com/google/uuid"
+)
+
+// https://www.bilibili.com/video/BV1GT4y1v73g?spm_id_from=333.337.search-card.all.click
+// Data is what I want to display and manipulate in a widget.Tree.
+type Data struct {
+	Data     string  `json:"data"`
+	Children []*Data `json:"children"`
+}
+
+// Easier to type aliases
+type idDataMap = map[widget.TreeNodeID]*Data
+type idChildMap = map[widget.TreeNodeID][]widget.TreeNodeID
+
+var _ fyne.DoubleTappable = (*treeNode)(nil)
+
+// treeNode is the widget displayed within the model. Its sole job is to lookup its state from the model and update the widget.Label.
+type treeNode struct {
+	*widget.Label
+
+	mux   sync.Mutex
+	ID    widget.TreeNodeID
+	model *TreeModel
+}
+
+func newTreeNode(id widget.TreeNodeID, model *TreeModel) *treeNode {
+	lbl := widget.NewLabel("")
+	node := &treeNode{
+		Label: lbl,
+		ID:    id,
+		model: model,
+	}
+	node.ExtendBaseWidget(node)
+	return node
+}
+
+func (n *treeNode) update(id widget.TreeNodeID, _ bool, val *Data) {
+	n.mux.Lock()
+	defer n.mux.Unlock()
+	n.ID = id
+	n.Label.SetText(val.Data)
+	n.Label.Refresh()
+}
+
+// Debugging handler to print the node and model state.
+func (n *treeNode) DoubleTapped(_ *fyne.PointEvent) {
+	n.PrintState()
+	n.model.PrintState()
+}
+
+func (n *treeNode) PrintState() {
+	log.Printf("Node state: ID='%s', LabelText='%s'\n", n.ID, n.Text)
+}
+
+// TreeModel maintains the registry of nodes within the model and allows for state mutations.
+type TreeModel struct {
+	*widget.Tree
+
+	mux      sync.RWMutex
+	idMap    idDataMap
+	childMap idChildMap
+	//tree     *widget.Tree
+}
+
+func NewTreeModel(baseNode *Data) *TreeModel {
+	model := &TreeModel{
+		idMap:    idDataMap{},
+		childMap: idChildMap{},
+	}
+	//treeWidget := widget.NewTree(model.childIDs, model.isBranch, model.prototype, model.update)
+	treeWidget := &widget.Tree{
+		ChildUIDs:  model.childIDs,
+		IsBranch:   model.isBranch,
+		CreateNode: model.prototype,
+		UpdateNode: model.update,
+	}
+	//model.tree = treeWidget
+	model.Tree = treeWidget
+	model.idMap[""] = nil
+	model.init(baseNode)
+	model.ExtendBaseWidget(model)
+	return model
+}
+
+//func (t *TreeModel) GetTree() *widget.Tree {
+//	return t.tree
+//}
+
+// AddNode adds the data to the model and to the subject node. This works fine.
+func (t *TreeModel) AddNode(parentID widget.TreeNodeID, node *Data) widget.TreeNodeID {
+	t.mux.Lock()
+	nodeID := t.register(node)
+	t.childMap[parentID] = append(t.childMap[parentID], nodeID)
+	t.mux.Unlock()
+	t.Refresh()
+	//t.tree.Refresh()
+	return nodeID
+}
+
+func (t *TreeModel) register(spec *Data) widget.TreeNodeID {
+	id := t.nextID()
+	t.idMap[id] = spec
+	return id
+}
+
+func (t *TreeModel) nextID() widget.TreeNodeID {
+	id, err := uuid.NewRandom()
+	for err != nil {
+		panic(fmt.Errorf("failed to generate UUID: %v", err))
+	}
+	return id.String()
+}
+
+func (t *TreeModel) childIDs(id widget.TreeNodeID) []widget.TreeNodeID {
+	t.mux.RLock()
+	defer t.mux.RUnlock()
+	children, ok := t.childMap[id]
+	if !ok {
+		return nil
+	}
+	return children
+}
+
+func (t *TreeModel) isBranch(id widget.TreeNodeID) bool {
+	t.mux.RLock()
+	defer t.mux.RUnlock()
+	_, isBranch := t.childMap[id]
+	return isBranch
+}
+
+func (t *TreeModel) prototype(_ bool) fyne.CanvasObject {
+	return newTreeNode("", t)
+}
+
+func (t *TreeModel) update(id widget.TreeNodeID, isBranch bool, cachedProto fyne.CanvasObject) {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	node := cachedProto.(*treeNode)
+	spec := t.idMap[id]
+	node.update(id, isBranch, spec)
+}
+
+func (t *TreeModel) init(base *Data) {
+	t.walkInit("", base)
+}
+
+func (t *TreeModel) walkInit(parentID widget.TreeNodeID, val *Data) {
+	valID := t.AddNode(parentID, val)
+	for _, e := range val.Children {
+		t.walkInit(valID, e)
+	}
+}
+
+func (t *TreeModel) PrintState() {
+	var idMapState strings.Builder
+	var childMapState strings.Builder
+
+	t.mux.RLock()
+	defer t.mux.RUnlock()
+	idMapData, err := json.MarshalIndent(&t.idMap, "", "  ")
+	if err != nil {
+		idMapState.WriteString("Error: " + err.Error())
+	} else {
+		idMapState.Write(idMapData)
+	}
+
+	childMapData, err := json.MarshalIndent(&t.childMap, "", "  ")
+	if err != nil {
+		childMapState.WriteString("Error: " + err.Error())
+	} else {
+		childMapState.Write(childMapData)
+	}
+
+	log.Printf(`TreeModel state:ID Map state:%sChild Map state:%s`, idMapState.String(), childMapState.String())
+}
+
+func main() {
+	w := app.New().NewWindow("Testing custom tree")
+	w.Resize(fyne.NewSize(640, 480))
+
+	dataRoot := &Data{Data: "Root"}
+	childA := &Data{Data: "A"}
+	childB := &Data{Data: "B"}
+	childC := &Data{Data: "C"}
+	childD := &Data{Data: "D"}
+	childE := &Data{Data: "E"}
+	childF := &Data{Data: "F"}
+	dataRoot.Children = []*Data{childA, childB, childC, childD, childE, childF}
+	tree := NewTreeModel(dataRoot)
+	w.SetContent(tree)
+	//w.SetContent(tree.GetTree())
+
+	w.ShowAndRun()
+}
